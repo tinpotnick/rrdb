@@ -899,7 +899,7 @@ finishnomodify:
  *
  * Written: 9th March 2013 By: Nick Knight
  ************************************************************************************/
-int updateRRDBFile(char *filename, char* vals) {
+int updateRRDBFile(char *filename, char* vals, unsigned long timestamp) {
   rrdbFile fileData;
   unsigned int i;
   char *result = NULL;
@@ -911,6 +911,7 @@ int updateRRDBFile(char *filename, char* vals) {
 
   struct tm *current_tm;
   time_t current_time;
+  time_t last_time;
 
   int pfd;
 
@@ -930,6 +931,8 @@ int updateRRDBFile(char *filename, char* vals) {
     return -1;
   }
 
+  last_time = fileData.times[fileData.header.windowPosition].time;
+
   /*
     Move round on 1
     */
@@ -939,11 +942,19 @@ int updateRRDBFile(char *filename, char* vals) {
     times
     */
 
+  if (timestamp != 0 && timestamp < last_time) {
+      printf("ERROR: timestamp must be greater than last time\n");
+      return -1;
+  } else if (timestamp != 0 && timestamp >= last_time) {
+      t1.tv_sec = timestamp;
+      t1.tv_usec = 0;
+  } else {
+      gettimeofday(&t1, NULL);
+  }
+
   fileData.times[fileData.header.windowPosition].valid = 1;
-  gettimeofday(&t1, NULL);
   fileData.times[fileData.header.windowPosition].time = t1.tv_sec;
   fileData.times[fileData.header.windowPosition].uSecs = t1.tv_usec;
-
 
   /*
     The vals are a string of seperated vales in the format of num:num:num
@@ -1584,7 +1595,7 @@ int runcreate( char *filename, unsigned int sampleCount, unsigned int setCount, 
  * runs the command
  * Written: 10th March 2013 By: Nick Knight
  */
-int runCommand(char *filename, RRDBCommand ourCommand, unsigned int sampleCount, unsigned int setCount, char *values, char *xformations, char * cperiod) {
+int runCommand(char *filename, RRDBCommand ourCommand, unsigned int sampleCount, unsigned int setCount, char *values, char *xformations, char * cperiod, unsigned long timestamp) {
 
   switch( ourCommand ) {
     case CREATE:
@@ -1597,8 +1608,8 @@ int runCommand(char *filename, RRDBCommand ourCommand, unsigned int sampleCount,
 
     case UPDATE:
       /* we should be given a value for each set we have */
-      return updateRRDBFile( filename, &values[ 0 ] );
-      /* update can fail - but just indicate it needs creating - output will havebeen sent though */
+      return updateRRDBFile( filename, &values[ 0 ], timestamp );
+      /* update can fail - but just indicate it needs creating - output will have been sent though */
       break;
 
     case MODIFY:
@@ -1652,6 +1663,8 @@ int waitForInput(char *dir) {
   char period[MAXCOMMANDLENGTH];
 
   char fulldirname[PATH_MAX + NAME_MAX];
+
+  long timestamp = 0;
 
   command[0] = 0;
   while( TRUE ) {
@@ -1750,7 +1763,7 @@ int waitForInput(char *dir) {
     strcpy( &period[0], result );
   }
 
-  int ret = runCommand(fulldirname, ourCommand, sampleCount, setCount, values, xformations, period);
+  int ret = runCommand(fulldirname, ourCommand, sampleCount, setCount, values, xformations, period, timestamp);
   switch( ret ) {
     case -1:
       break;
@@ -1799,6 +1812,7 @@ int main(int argc, char **argv) {
   char filename[NAME_MAX];
   char period[NAME_MAX];
   int pathlength = 0;
+  long timestamp = 0;
 
   char values[MAXVALUESTRING];
   char xformations[MAXVALUESTRING];
@@ -1814,6 +1828,7 @@ int main(int argc, char **argv) {
       {"xform",       1, 0, 6 },
       {"touchpath",   1, 0, 7 },
       {"period",      1, 0, 8 },
+      {"timestamp",   1, 0, 9 },
       {0,             0, 0, 0 }
   };
 
@@ -1853,8 +1868,8 @@ int main(int argc, char **argv) {
         } else if ( 0 == strcmp("modify", optarg) ) {
           ourCommand = MODIFY;
         }
-
         break;
+
       case 1:
         setCount = atoi(optarg);;
         break;
@@ -1870,7 +1885,6 @@ int main(int argc, char **argv) {
           exit(1);
         }
         strcpy( &dir[0], optarg );
-
         break;
 
       case 4:
@@ -1880,7 +1894,7 @@ int main(int argc, char **argv) {
           exit(1);
         }
         strcpy( &filename[0], optarg );
-  break;
+        break;
 
       case 5:
         /* values */
@@ -1909,9 +1923,15 @@ int main(int argc, char **argv) {
         }
         strcpy( &xformations[0], optarg );
         break;
+
       case 8:
         /* period */
         strcpy( &period[0], optarg );
+        break;
+
+      case 9:
+        /* timestamp */
+        timestamp = atol( optarg );
         break;
 
       default:
@@ -1931,8 +1951,7 @@ int main(int argc, char **argv) {
 
     strcpy(&fulldirname[pathlength], &filename[0]);
 
-    runCommand(fulldirname, ourCommand, sampleCount, setCount, values, xformations, period);
-
+    runCommand(fulldirname, ourCommand, sampleCount, setCount, values, xformations, period, timestamp);
   }
 
   /* mainly to keep users of valgrind happy as to while 3 file descriptors are still open */

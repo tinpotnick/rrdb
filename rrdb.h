@@ -141,7 +141,7 @@ int unlockandclose( int pfd );
 int initRRDBFile(char *filename, unsigned int setCount, unsigned int sampleCount , char *xformations);
 int readRRDBFile(int pfd, rrdbFile *fileData); /* RRDB V1 */
 int writeRRDBFile(int pfd, rrdbFile *fileData);
-int updateRRDBFile(char *filename, char* vals);
+int updateRRDBFile(char *filename, char* vals, unsigned long timestamp);
 int modifyRRDBFile(char *filename, char* vals, char* xform);
 int freeRRDBFile(rrdbFile *fileData);
 int printRRDBFile(rrdbFile *fileData);
@@ -151,7 +151,7 @@ int waitForInput(char *dir);
 
 int runfetch( char *filename, char *xformations, char * cperiod );
 int runcreate( char *filename, unsigned int sampleCount, unsigned int setCount, char *xformations );
-int runCommand(char *filename, RRDBCommand ourCommand, unsigned int sampleCount, unsigned int setCount, char *values, char *xformations, char * period);
+int runCommand(char *filename, RRDBCommand ourCommand, unsigned int sampleCount, unsigned int setCount, char *values, char *xformations, char * period, unsigned long timestamp);
 
 int touchRRDBFile(char *filename, char *path, char * period, unsigned int maxsets, unsigned int sampleCount);
 int findTouchSet(int pfd, char *path, unsigned int period, unsigned int maxsets);
